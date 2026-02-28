@@ -46,10 +46,10 @@ GaussianSplatting::GaussianSplatting(nvutils::ProfilerManager* profilerManager, 
 
     };
 
-GaussianSplatting::~GaussianSplatting(){
-    // all threads must be stopped,
-    // work done in onDetach(),
-    // could be done here, same result
+GaussianSplatting::~GaussianSplatting() {
+  // all threads must be stopped,
+  // work done in onDetach(),
+  // could be done here, same result
 };
 
 void GaussianSplatting::onAttach(nvapp::Application* app)
@@ -88,6 +88,12 @@ void GaussianSplatting::onAttach(nvapp::Application* app)
 
   // GBuffer
   m_depthFormat = nvvk::findDepthFormat(app->getPhysicalDevice());
+
+  // Use float32 color format for depth visualization to preserve precision
+  if(prmRender.visualize == VISUALIZE_DEPTH)
+  {
+    m_colorFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+  }
 
   // Two GBuffer color attachments, the second one is used only when temporal sampling with 3DGUT
   m_gBuffers.init({
@@ -390,9 +396,12 @@ void GaussianSplatting::processUpdateRequests(void)
       // RTX specific
       m_splatSetVk.rtxDeinitAccelerationStructures();
       m_splatSetVk.rtxDeinitSplatModel();
-      m_splatSetVk.rtxInitSplatModel(m_splatSet, prmRtxData.useTlasInstances, prmRtxData.useAABBs, prmRtxData.compressBlas,
-                                     prmRtx.kernelDegree, prmRtx.kernelMinResponse, prmRtx.kernelAdaptiveClamping);
-      m_splatSetVk.rtxInitAccelerationStructures(m_splatSet);
+      if(prmSelectedPipeline == PIPELINE_RTX || prmSelectedPipeline == PIPELINE_HYBRID || prmSelectedPipeline == PIPELINE_HYBRID_3DGUT)
+      {
+        m_splatSetVk.rtxInitSplatModel(m_splatSet, prmRtxData.useTlasInstances, prmRtxData.useAABBs, prmRtxData.compressBlas,
+                                       prmRtx.kernelDegree, prmRtx.kernelMinResponse, prmRtx.kernelAdaptiveClamping);
+        m_splatSetVk.rtxInitAccelerationStructures(m_splatSet);
+      }
     }
 
     if(m_requestUpdateMeshData || m_requestDeleteSelectedMesh)
@@ -405,14 +414,20 @@ void GaussianSplatting::processUpdateRequests(void)
 
       m_meshSetVk.rtxDeinitAccelerationStructures();
       m_meshSetVk.updateObjDescriptionBuffer();
-      m_meshSetVk.rtxInitAccelerationStructures();
+      if(prmSelectedPipeline == PIPELINE_RTX || prmSelectedPipeline == PIPELINE_HYBRID || prmSelectedPipeline == PIPELINE_HYBRID_3DGUT)
+      {
+        m_meshSetVk.rtxInitAccelerationStructures();
+      }
     }
 
     if(initShaders())
     {
       initPipelines();
-      initRtDescriptorSet();
-      initRtPipeline();
+      if(prmSelectedPipeline == PIPELINE_RTX || prmSelectedPipeline == PIPELINE_HYBRID || prmSelectedPipeline == PIPELINE_HYBRID_3DGUT)
+      {
+        initRtDescriptorSet();
+        initRtPipeline();
+      }
       initDescriptorSetPostProcessing();
       initPipelinePostProcessing();
     }
@@ -876,13 +891,16 @@ bool GaussianSplatting::initAll()
   initPipelines();
 
   // RTX specifics
-  m_splatSetVk.rtxInitSplatModel(m_splatSet, prmRtxData.useTlasInstances, prmRtxData.useAABBs, prmRtxData.compressBlas,
-                                 prmRtx.kernelDegree, prmRtx.kernelMinResponse, prmRtx.kernelAdaptiveClamping);
+  if(prmSelectedPipeline == PIPELINE_RTX || prmSelectedPipeline == PIPELINE_HYBRID || prmSelectedPipeline == PIPELINE_HYBRID_3DGUT)
+  {
+    m_splatSetVk.rtxInitSplatModel(m_splatSet, prmRtxData.useTlasInstances, prmRtxData.useAABBs, prmRtxData.compressBlas,
+                                   prmRtx.kernelDegree, prmRtx.kernelMinResponse, prmRtx.kernelAdaptiveClamping);
 
-  m_splatSetVk.rtxInitAccelerationStructures(m_splatSet);
+    m_splatSetVk.rtxInitAccelerationStructures(m_splatSet);
 
-  initRtDescriptorSet();
-  initRtPipeline();
+    initRtDescriptorSet();
+    initRtPipeline();
+  }
 
   // Post processing
   initDescriptorSetPostProcessing();

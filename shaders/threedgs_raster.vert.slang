@@ -67,6 +67,9 @@ struct VertexOutput
   [[vk::location(1)]] float2 outFragPos : TEXCOORD1;
 #endif
   [[vk::location(2)]] float4 position : SV_Position;
+#if VISUALIZE == VISUALIZE_DEPTH
+  [[vk::location(3)]] nointerpolation float viewDepth : TEXCOORD2;
+#endif
 };
 
 [[vk::binding(BINDING_FRAME_INFO_UBO, 0)]] ConstantBuffer<FrameInfo> frameInfo;
@@ -133,6 +136,10 @@ VertexOutput main(VertexInput input)
   // see later on for MipSplatting = on
 #if MS_ANTIALIASING == 0
   output.outFragCol = splatColor;
+#endif
+
+#if VISUALIZE == VISUALIZE_DEPTH
+  output.viewDepth = viewCenter.z;
 #endif
 
   // Computes the projected covariance

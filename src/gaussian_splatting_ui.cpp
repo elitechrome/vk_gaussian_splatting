@@ -54,14 +54,41 @@ GaussianSplattingUI::GaussianSplattingUI(nvutils::ProfilerManager*   profilerMan
                               [&](const nvutils::ParameterBase* const) {
                                 if(m_app)
                                 {
-                                  m_app->screenShot(m_screenshotFilename);
+                                  if(m_app->isHeadless())
+                                  {
+                                    VkExtent2D size = {static_cast<uint32_t>(m_viewSize.x),
+                                                       static_cast<uint32_t>(m_viewSize.y)};
+                                    m_app->saveImageToFile(m_gBuffers.getColorImage(0), size, m_screenshotFilename);
+                                  }
+                                  else
+                                  {
+                                    m_app->screenShot(m_screenshotFilename);
+                                  }
                                 }
                               }},
-                         {".png"}, &m_screenshotFilename);
+                         {".png", ".hdr"}, &m_screenshotFilename);
+
+  // Added by 3dgs_renderer integration
+  parameterRegistry->add({.name = "cameraFile",
+                          .help = "Import INRIA camera file for benchmarking.",
+                          .callbackSuccess =
+                              [&](const nvutils::ParameterBase* const) {
+                                if(!m_cameraFilename.empty())
+                                {
+                                  importCamerasINRIA(m_cameraFilename.string(), m_cameraSet);
+                                }
+                              }},
+                         {".json"}, &m_cameraFilename);
+
+  parameterRegistry->add(
+      {.name            = "cameraIndex",
+       .help            = "Select camera index from loaded set.",
+       .callbackSuccess = [&](const nvutils::ParameterBase* const) { m_cameraSet.loadPreset(m_cameraIndex, true); }},
+      &m_cameraIndex);
 };
 
-GaussianSplattingUI::~GaussianSplattingUI(){
-    // Nothing to do here
+GaussianSplattingUI::~GaussianSplattingUI() {
+  // Nothing to do here
 };
 
 void GaussianSplattingUI::onAttach(nvapp::Application* app)
@@ -984,14 +1011,12 @@ void GaussianSplattingUI::guiDrawRendererProperties()
   if(PE::Checkbox("V-Sync", &vsync))
     m_app->setVsync(vsync);
 
-  if(PE::entry(
-         "Pipeline", [&]() { return m_ui.enumCombobox(GUI_PIPELINE, "##ID", &prmSelectedPipeline); }, "Selects the rendering method"))
+  if(PE::entry("Pipeline", [&]() { return m_ui.enumCombobox(GUI_PIPELINE, "##ID", &prmSelectedPipeline); }, "Selects the rendering method"))
   {
     m_requestUpdateShaders = true;
   }
 
-  if(PE::entry(
-         "Default settings", [&] { return ImGui::Button("Reset"); }, "resets to default settings"))
+  if(PE::entry("Default settings", [&] { return ImGui::Button("Reset"); }, "resets to default settings"))
   {
     resetRenderSettings();
     m_requestUpdateShaders   = true;
@@ -999,8 +1024,7 @@ void GaussianSplattingUI::guiDrawRendererProperties()
   }
 
   ImGui::BeginDisabled(prmSelectedPipeline != PIPELINE_RTX);
-  if(PE::entry(
-         "Visualize", [&]() { return m_ui.enumCombobox(GUI_VISUALIZE, "##ID", &prmRender.visualize); }, "Selects the visualization mode"))
+  if(PE::entry("Visualize", [&]() { return m_ui.enumCombobox(GUI_VISUALIZE, "##ID", &prmRender.visualize); }, "Selects the visualization mode"))
   {
     m_requestUpdateShaders = true;
   }
@@ -1281,8 +1305,7 @@ void GaussianSplattingUI::guiDrawSplatSetProperties()
   {
     if(PE::begin("##VRAM format"))
     {
-      if(PE::entry(
-             "Default settings", [&] { return ImGui::Button("Reset"); }, "resets to default settings"))
+      if(PE::entry("Default settings", [&] { return ImGui::Button("Reset"); }, "resets to default settings"))
       {
         resetDataParameters();
         m_requestUpdateSplatData = true;
@@ -1310,8 +1333,7 @@ void GaussianSplattingUI::guiDrawSplatSetProperties()
   {
     if(PE::begin("##VRAM format RTX"))
     {
-      if(PE::entry(
-             "Default settings", [&] { return ImGui::Button("Reset"); }, "resets to default settings"))
+      if(PE::entry("Default settings", [&] { return ImGui::Button("Reset"); }, "resets to default settings"))
       {
         resetRtxDataParameters();
         m_requestUpdateSplatAs = true;
@@ -1376,8 +1398,8 @@ void GaussianSplattingUI::guiDrawMeshMaterialProperties()
     auto& material = materials[i];
     ImGui::PushID(i);
     PE::Text("Name", m_meshSetVk.meshes[objIndex].matNames[i]);
-    needMaterialUpdate |= PE::entry(
-        "Model", [&]() { return m_ui.enumCombobox(GUI_ILLUM_MODEL, "##ID", &material.illum); }, "TODO");
+    needMaterialUpdate |=
+        PE::entry("Model", [&]() { return m_ui.enumCombobox(GUI_ILLUM_MODEL, "##ID", &material.illum); }, "TODO");
     needMaterialUpdate |= PE::ColorEdit3("ambient", glm::value_ptr(material.ambient));
     needMaterialUpdate |= PE::ColorEdit3("diffuse", glm::value_ptr(material.diffuse));
     needMaterialUpdate |= PE::ColorEdit3("specular", glm::value_ptr(material.specular));

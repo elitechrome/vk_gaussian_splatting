@@ -102,6 +102,7 @@ void registerCommandLineParameters(nvutils::ParameterRegistry* parameterRegistry
   // Pipelines
   parameterRegistry->add({"pipeline", "0=3dgs-vert 1=3dgs-mesh(default) 2=3dgrt 3=hybrid-3dgs 4=3dgut 5=hybrid-3dgut"},
                          &prmSelectedPipeline);
+  parameterRegistry->add({"visualize", "0=final(default) 1=clock 2=depth 3=rayhits"}, &prmRender.visualize);
   parameterRegistry->add({"maxShDegree", "max sh degree used for rendering in [0,1,2,3]"}, &prmRender.maxShDegree);
   parameterRegistry->add({"extentProjection", "particle extent projection method [0=Eigen (default),1=Conic]"},
                          &prmRaster.extentProjection);

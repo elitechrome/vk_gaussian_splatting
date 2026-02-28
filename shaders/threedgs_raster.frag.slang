@@ -58,12 +58,18 @@ struct VertexInput
 #if !USE_BARYCENTRIC
   [[vk::location(1)]] float2 inFragPos : TEXCOORD0;
 #endif
+#if VISUALIZE == VISUALIZE_DEPTH
+  [[vk::location(3)]] nointerpolation float viewDepth : TEXCOORD2;
+#endif
 };
 
 // Per-primitive input (from mesh shader)
 struct MeshPrimitiveInput
 {
   [[vk::location(0)]] float4 inSplatCol : COLOR0;
+#if VISUALIZE == VISUALIZE_DEPTH
+  [[vk::location(3)]] nointerpolation float viewDepth : TEXCOORD2;
+#endif
 };
 
 // Per-vertex input (from mesh shader)
@@ -105,7 +111,11 @@ FragmentOutput main(VertexInput vert
   const float3 baryCoord = float3(0.0);  // placeholder
 #endif
 
+#if VISUALIZE == VISUALIZE_DEPTH
+  return processFragment(inFragPos, vert.inSplatCol, baryCoord, vert.viewDepth);
+#else
   return processFragment(inFragPos, vert.inSplatCol, baryCoord);
+#endif
 }
 
 ///////////////
@@ -130,14 +140,22 @@ FragmentOutput main_mesh(MeshVertexInput                    vert,
   const float3 baryCoord = float3(0.0);  // placeholder
 #endif
 
+#if VISUALIZE == VISUALIZE_DEPTH
+  return processFragment(inFragPos, prim.inSplatCol, baryCoord, prim.viewDepth);
+#else
   return processFragment(inFragPos, prim.inSplatCol, baryCoord);
+#endif
 }
 
 ///////////////
 // common processing function (the hart of the shader)
 // #if USE_BARYCENTRIC : inFragPos is a placeholder (not used)
 // #if !USE_BARYCENTRIC && !WIREFRAME : baryCoord is a placeholder (not used)
+#if VISUALIZE == VISUALIZE_DEPTH
+FragmentOutput processFragment(float2 inFragPos, float4 inSplatCol, float3 baryCoord, float viewDepth)
+#else
 FragmentOutput processFragment(float2 inFragPos, float4 inSplatCol, float3 baryCoord)
+#endif
 {
   FragmentOutput output;
 
@@ -175,7 +193,13 @@ FragmentOutput processFragment(float2 inFragPos, float4 inSplatCol, float3 baryC
   const float opacity = exp(-0.5 * A) * inSplatCol.a;
 #endif
 
+#if VISUALIZE == VISUALIZE_DEPTH
+  // Output negated view-space Z as depth (view Z is negative for objects in front of camera)
+  const float depth = -viewDepth;
+  output.outColor = float4(depth, depth, depth, opacity);
+#else
   output.outColor = float4(inSplatCol.rgb, opacity);
+#endif
 
   return output;
 }

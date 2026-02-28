@@ -169,6 +169,10 @@ private:
   // screenshot file name (used by benchmark)
   std::filesystem::path m_screenshotFilename;
 
+  // Added by 3dgs_renderer integration
+  std::filesystem::path m_cameraFilename;
+  int                   m_cameraIndex = 0;
+
   // Recent files list
   std::vector<std::filesystem::path> m_recentFiles;
 

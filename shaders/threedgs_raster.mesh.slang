@@ -61,6 +61,9 @@ static const int MAX_PRIMITIVES = 2 * RASTER_MESH_WORKGROUP_SIZE;
 struct PrimitiveOutput
 {
   [[vk::location(0)]] nointerpolation float4 outSplatCol : COLOR0;
+#if VISUALIZE == VISUALIZE_DEPTH
+  [[vk::location(3)]] nointerpolation float viewDepth : TEXCOORD2;
+#endif
 };
 
 // Per vertex output
@@ -166,6 +169,12 @@ void main(
     prims[localIndex * 2 + 1].outSplatCol = splatColor;
 #endif
 
+#if VISUALIZE == VISUALIZE_DEPTH
+    // Pass view-space Z (negative for objects in front of the camera)
+    prims[localIndex * 2 + 0].viewDepth = viewCenter.z;
+    prims[localIndex * 2 + 1].viewDepth = viewCenter.z;
+#endif
+
 #if FRUSTUM_CULLING_MODE == FRUSTUM_CULLING_AT_RASTER
     const float clip = (1.0 + frameInfo.frustumDilation) * clipCenter.w;
     if(abs(clipCenter.x) > clip || abs(clipCenter.y) > clip
@@ -207,6 +216,10 @@ void main(
     // emit the color with alpha compensation
     prims[localIndex * 2 + 0].outSplatCol = splatColor;
     prims[localIndex * 2 + 1].outSplatCol = splatColor;
+#if VISUALIZE == VISUALIZE_DEPTH
+    prims[localIndex * 2 + 0].viewDepth = viewCenter.z;
+    prims[localIndex * 2 + 1].viewDepth = viewCenter.z;
+#endif
 #endif
 
     /////////////////////////////
