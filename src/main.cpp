@@ -36,6 +36,7 @@ int main(int argc, char** argv)
                                                       .parameterRegistry = &parameterRegistry,
                                                       // sequencer uses the profiler for benchmarking
                                                       .profilerManager = &profilerManager};
+  sequencerInfo.sequenceFrameCount = 1;  // Default to 1 frame per sequence for fast screenshots
 
   nvvk::Context                vkContext;  // The Vulkan context
   nvvk::ContextInitInfo        vkSetup;    // Information to create the Vulkan context
@@ -53,6 +54,8 @@ int main(int argc, char** argv)
   parameterRegistry.add({"validation", "Enable validation layers"}, &vkSetup.enableValidationLayers);
   parameterRegistry.add({"benchmark", "Enable benchmarking, prevents async loadings and turns off vsync"}, &benchmarkMode);
   parameterRegistry.add({"forcegpu", "Force the use of a specific GPU by probviding its ID"}, &vkSetup.forceGPU);
+  parameterRegistry.add({"headless", "Run in headless mode"}, &appInfo.headless);
+  parameterRegistry.add({"headless_frame_count", "Number of frames to render in headless mode"}, &appInfo.headlessFrameCount);
 
   registerCommandLineParameters(&parameterRegistry);
 
@@ -84,10 +87,19 @@ int main(int argc, char** argv)
 
   /////////////////////////////////
   // Vulkan creation context information
+  // Vulkan creation context information
   vkSetup.enableAllFeatures = true;
+#ifdef __APPLE__
+  vkSetup.apiVersion = VK_API_VERSION_1_2;  // MoltenVK is safer with 1.2
+  // Disable automatic optional feature enabling on macOS to avoid MoltenVK issues
+  vkSetup.enableAllFeatures = false;
+#endif
 
   // - Instance extensions
   vkSetup.instanceExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#ifdef __APPLE__
+  vkSetup.instanceExtensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+#endif
 
   // - Device extensions
   static VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR baryFeaturesKHR = {
@@ -101,28 +113,36 @@ int main(int argc, char** argv)
   };
   vkSetup.deviceExtensions.emplace_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);  // for vk_radix_sort (vrdx)
   vkSetup.deviceExtensions.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
+#ifndef __APPLE__
   vkSetup.deviceExtensions.emplace_back(VK_EXT_MESH_SHADER_EXTENSION_NAME, &meshFeaturesEXT, true);
   vkSetup.deviceExtensions.emplace_back(VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME, &fragFeaturesKHR, true);
   vkSetup.deviceExtensions.emplace_back(VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME, &baryFeaturesKHR, true);
+#endif
+
   vkSetup.deviceExtensions.emplace_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);  // for ImGui
 
   // Activate the ray tracing extension
   VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeature = {
       .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
-  vkSetup.deviceExtensions.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, &accelFeature, true);  // To build acceleration structures
+  // vkSetup.deviceExtensions.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, &accelFeature, true);  // To build acceleration structures
   VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature = {
       .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
-  vkSetup.deviceExtensions.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, &rtPipelineFeature, false);  // To use vkCmdTraceRaysKHR
-  vkSetup.deviceExtensions.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);  // Required by ray tracing pipeline
+  // vkSetup.deviceExtensions.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, &rtPipelineFeature, false);  // To use vkCmdTraceRaysKHR
+  // vkSetup.deviceExtensions.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);  // Required by ray tracing pipeline
 
   VkPhysicalDeviceShaderClockFeaturesKHR clockFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CLOCK_FEATURES_KHR};
+#ifndef __APPLE__
   vkSetup.deviceExtensions.emplace_back(VK_KHR_SHADER_CLOCK_EXTENSION_NAME, &clockFeatures);
+#endif
 
   VkPhysicalDeviceRayTracingInvocationReorderFeaturesNV serFeatures = {
       .sType                       = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_NV,
       .rayTracingInvocationReorder = VK_TRUE,
   };
+#ifndef __APPLE__
   vkSetup.deviceExtensions.emplace_back(VK_NV_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME, &serFeatures, false);
+#endif
 
   if(!appInfo.headless)
   {
@@ -138,6 +158,10 @@ int main(int argc, char** argv)
   vkSetup.instanceCreateInfoExt = vvlInfo.buildPNextChain();  // Adding the validation layer settings
 
   // Create Vulkan context
+  printf("Requesting Instance Extensions:\n");
+  for(const auto& ext : vkSetup.instanceExtensions)
+    printf("  - %s\n", ext);
+
   if(vkContext.init(vkSetup) != VK_SUCCESS)
   {
     LOGE("Error in Vulkan context creation\n");
